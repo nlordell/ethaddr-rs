@@ -1,6 +1,7 @@
 //! Serde serialization implementation for Ethereum public addresses.
 
-#[cfg(test)]
+//#[cfg(test)]
+#[cfg(feature = "false")]
 mod tests {
     use super::*;
 

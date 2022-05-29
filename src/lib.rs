@@ -1,6 +1,6 @@
 //! TODO(nlordell)
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 
 #[cfg(any(feature = "sha3", feature = "tiny-keccak"))]
 mod checksum;
@@ -95,6 +95,38 @@ impl Address {
         Ok(address)
     }
 }
+
+/// TODO(nlordell): ...
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// # use ethaddr::{address, Address};
+/// for address in [
+///     address!("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
+///     address!("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
+/// ] {
+///     assert_eq!(address, Address([0xee; 20]));
+/// }
+/// ```
+///
+/// Note that by default, the procedural macro will verify address checksums:
+///
+/// ```compile_fail
+/// # use ethaddr::address;
+/// let _ = address!("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+/// ```
+///
+/// However, this behaviour can be ignored by prefixing the address with a `~`:
+///
+/// ```
+/// # use ethaddr::address;
+/// let _ = address!(~"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+/// ```
+#[cfg(feature = "macros")]
+pub use ethaddr_macros::address;
 
 impl Debug for Address {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

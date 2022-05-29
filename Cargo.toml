@@ -18,7 +18,8 @@ members = [
 ]
 
 [features]
-default = ["sha3", "std"]
+#default = ["sha3", "std"]
+default = ["macros", "serde", "sha3", "std"]
 macros = ["ethaddr-macros"]
 std = ["serde?/std", "sha3?/std"]
 
