@@ -1,5 +1,7 @@
 //! TODO(nlordell)
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
 #[cfg(any(feature = "sha3", feature = "tiny-keccak"))]
 mod checksum;
 #[cfg(feature = "serde")]
@@ -8,6 +10,7 @@ mod serde;
 use core::{
     array::{IntoIter, TryFromSliceError},
     fmt::{self, Debug, Display, Formatter, LowerHex, UpperHex},
+    mem::{self, MaybeUninit},
     ops::{Deref, DerefMut},
     slice::Iter,
     str::{self, FromStr},
@@ -24,21 +27,72 @@ impl Address {
     /// # Panics
     ///
     /// This method panics if the length of the slice is not 20 bytes.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// # use ethaddr::Address;
+    /// let buffer = (0..255).collect::<Vec<_>>();
+    /// assert_eq!(
+    ///     Address::from_slice(&buffer[0..20]),
+    ///     Address([
+    ///         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
+    ///         0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13
+    ///     ]),
+    /// );
+    /// ```
     pub fn from_slice(slice: &[u8]) -> Self {
         slice.try_into().unwrap()
     }
 
     /// Creates a reference to an address from a reference to a 20-byte array.
-    pub fn from_ref<'a>(array: &'a [u8; 20]) -> &'a Self {
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// # use ethaddr::Address;
+    /// let arrays = [[0; 20], [1; 20]];
+    /// for address in arrays.iter().map(Address::from_ref) {
+    ///     println!("{address}");
+    /// }
+    /// ```
+    pub fn from_ref(array: &[u8; 20]) -> &'_ Self {
         // SAFETY: `Address` and `[u8; 20]` have the same memory layout.
         unsafe { &*(array as *const [u8; 20]).cast::<Self>() }
     }
 
     /// Creates a mutable reference to an address from a mutable reference to a
     /// 20-byte array.
-    pub fn from_mut<'a>(array: &'a mut [u8; 20]) -> &'a mut Self {
+    pub fn from_mut(array: &mut [u8; 20]) -> &'_ mut Self {
         // SAFETY: `Address` and `[u8; 20]` have the same memory layout.
         unsafe { &mut *(array as *mut [u8; 20]).cast::<Self>() }
+    }
+
+    /// Parses a checksummed `Address` from a string.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// # use ethaddr::Address;
+    /// assert!(Address::from_str_checksum("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",).is_ok());
+    /// assert!(Address::from_str_checksum("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",).is_ok());
+    /// assert!(Address::from_str_checksum("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",).is_err());
+    /// ```
+    #[cfg(any(feature = "sha3", feature = "tiny-keccak"))]
+    pub fn from_str_checksum(s: &str) -> Result<Self, ParseAddressError> {
+        let address = s.parse()?;
+        let checksum = checksum::fmt(&address);
+        if strip_0x_prefix(checksum.as_str()) != strip_0x_prefix(s) {
+            return Err(ParseAddressError::ChecksumMismatch);
+        }
+
+        Ok(address)
     }
 }
 
@@ -126,30 +180,40 @@ impl DerefMut for Address {
 }
 
 impl FromStr for Address {
-    type Err = FromHexError;
+    type Err = ParseAddressError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut address = Self::default();
-        let s = s.strip_prefix("0x").unwrap_or(s);
+        let s = strip_0x_prefix(s);
+        if s.len() != 40 {
+            return Err(ParseAddressError::InvalidLength { len: s.len() });
+        }
 
-        hex::decode_to_slice(s, address.as_mut())?;
-        Ok(address)
+        let mut bytes = [MaybeUninit::<u8>::uninit(); 20];
+        let nibble = |c| match c {
+            b'0'..=b'9' => Some(c - b'0'),
+            b'A'..=b'F' => Some(c - b'A' + 0xa),
+            b'a'..=b'f' => Some(c - b'a' + 0xa),
+            _ => None,
+        };
+
+        for (i, ch) in s.as_bytes().chunks(2).enumerate() {
+            let (hi, lo) = (ch[0], ch[1]);
+
+            let hi = nibble(hi).ok_or(ParseAddressError::InvalidHexCharacter {
+                c: hi,
+                index: i * 2,
+            })?;
+            let lo = nibble(lo).ok_or(ParseAddressError::InvalidHexCharacter {
+                c: lo,
+                index: i * 2 + 1,
+            })?;
+
+            bytes[i].write((hi << 4) + lo);
+        }
+
+        let bytes = unsafe { mem::transmute(bytes) };
+        Ok(Self(bytes))
     }
-}
-
-/// Represents an error parsing an address from a string.
-pub enum ParseAddressError {
-    /// An invalid character was found. Valid ones are: `0...9`, `a...f`
-    /// or `A...F`.
-    InvalidHexCharacter { c: char, index: usize },
-
-    /// A hex string's length needs to be even, as two digits correspond to
-    /// one byte.
-    OddLength,
-    /// If the hex string is decoded into a fixed sized container, such as an
-    /// array, the hex string's length * 2 has to match the container's
-    /// length.
-    InvalidLength,
 }
 
 impl IntoIterator for Address {
@@ -194,6 +258,7 @@ impl PartialEq<&'_ mut [u8]> for Address {
     }
 }
 
+#[cfg(feature = "std")]
 impl PartialEq<Vec<u8>> for Address {
     fn eq(&self, other: &Vec<u8>) -> bool {
         **self == **other
@@ -232,12 +297,44 @@ impl<'a> TryFrom<&'a mut [u8]> for &'a mut Address {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> TryFrom<Vec<u8>> for Address {
     type Error = Vec<u8>;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         Ok(Self(value.try_into()?))
     }
+}
+
+/// Represents an error parsing an address from a string.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ParseAddressError {
+    /// The hex string does not match
+    InvalidLength { len: usize },
+    /// An invalid character was found.
+    InvalidHexCharacter { c: u8, index: usize },
+    /// The checksum encoded in the hex string's case does not match the
+    /// address.
+    ChecksumMismatch,
+}
+
+impl Display for ParseAddressError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::InvalidLength { .. } => write!(f, "invalid hex string length"),
+            Self::InvalidHexCharacter { c, index } => {
+                write!(f, "invalid character \\x{c:02x} at position {index}")
+            }
+            Self::ChecksumMismatch => write!(f, "address checksum does not match"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for ParseAddressError {}
+
+fn strip_0x_prefix(s: &str) -> &str {
+    s.strip_prefix("0x").unwrap_or(s)
 }
 
 #[cfg(test)]

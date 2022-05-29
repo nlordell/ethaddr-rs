@@ -17,10 +17,11 @@ pub fn fmt(address: &Address) -> ChecksummedAddress {
     buffer[0].write(b'0');
     buffer[1].write(b'x');
 
+    let nibble = |c: u8| b"0123456789abcdef"[c as usize];
     for (i, byte) in address.into_iter().enumerate() {
-        let j = i * 2;
-        buffer[j].write(b'0' + (byte >> 1));
-        buffer[j + 1].write(b'0' + (byte & 0xf));
+        let j = i * 2 + 2;
+        buffer[j].write(nibble(byte >> 4));
+        buffer[j + 1].write(nibble(byte & 0xf));
     }
 
     // SAFETY: We are guaranteed to written to every uninitilized byte.

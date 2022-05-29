@@ -12,21 +12,18 @@ license = "MIT OR Apache-2.0"
 keywords = ["public", "address", "ethereum"]
 categories = ["cryptography::cryptocurrencies", "no-std"]
 
-[package.metadata.docs.rs]
-features = ["macro", "serde", "tiny-keccak"]
-
 [workspace]
 members = [
-  "macro",
+  "macros",
 ]
 
 [features]
-default = ["tiny-keccak", "serde"]
-macro = ["ethaddr-macro"]
-std = ["sha3?/std"]
+default = ["sha3", "std"]
+macros = ["ethaddr-macros"]
+std = ["serde?/std", "sha3?/std"]
 
 [dependencies]
-ethaddr-macro = { version = "0.1", path = "macro", optional = true }
+ethaddr-macros = { version = "0.1", path = "macros", optional = true }
 serde = { version = "1", default-features = false, optional = true }
 sha3 = { version = "0.10", default-features = false, optional = true }
 tiny-keccak = { version = "2", features = ["keccak"], optional = true }
