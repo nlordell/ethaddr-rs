@@ -1,0 +1,18 @@
+[package]
+name = "ethaddr-macro"
+version = "0.1.0"
+authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
+edition = "2021"
+description = "Macro for Ethereum address values"
+documentation = "https://docs.rs/ethaddr-macro"
+readme = "README.md"
+homepage = "https://github.com/nlordell/ethaddr-rs"
+repository = "https://github.com/nlordell/ethaddr-rs"
+license = "MIT OR Apache-2.0"
+keywords = ["public", "address", "ethereum", "proc-macro"]
+categories = ["cryptography::cryptocurrencies"]
+
+[lib]
+proc-macro = true
+
+[dependencies]

@@ -1,0 +1,32 @@
+[package]
+name = "ethaddr"
+version = "0.1.0"
+authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
+edition = "2021"
+description = "Ethereum 20-byte public address"
+documentation = "https://docs.rs/ethaddr"
+readme = "README.md"
+homepage = "https://github.com/nlordell/ethaddr-rs"
+repository = "https://github.com/nlordell/ethaddr-rs"
+license = "MIT OR Apache-2.0"
+keywords = ["public", "address", "ethereum"]
+categories = ["cryptography::cryptocurrencies", "no-std"]
+
+[package.metadata.docs.rs]
+features = ["macro", "serde", "tiny-keccak"]
+
+[workspace]
+members = [
+  "macro",
+]
+
+[features]
+default = ["tiny-keccak", "serde"]
+macro = ["ethaddr-macro"]
+std = ["sha3?/std"]
+
+[dependencies]
+ethaddr-macro = { version = "0.1", path = "macro", optional = true }
+serde = { version = "1", default-features = false, optional = true }
+sha3 = { version = "0.10", default-features = false, optional = true }
+tiny-keccak = { version = "2", features = ["keccak"], optional = true }
