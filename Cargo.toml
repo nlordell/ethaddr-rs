@@ -18,8 +18,9 @@ members = [
 ]
 
 [features]
-#default = ["sha3", "std"]
-default = ["macros", "serde", "sha3", "std"]
+#default = ["checksum", "std"]
+default = ["checksum", "macros", "serde", "std"]
+checksum = ["sha3"]
 macros = ["ethaddr-macros"]
 std = ["serde?/std", "sha3?/std"]
 
@@ -27,4 +28,3 @@ std = ["serde?/std", "sha3?/std"]
 ethaddr-macros = { version = "0.1", path = "macros", optional = true }
 serde = { version = "1", default-features = false, optional = true }
 sha3 = { version = "0.10", default-features = false, optional = true }
-tiny-keccak = { version = "2", features = ["keccak"], optional = true }

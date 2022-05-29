@@ -16,3 +16,4 @@ categories = ["cryptography::cryptocurrencies"]
 proc-macro = true
 
 [dependencies]
+sha3 = { version = "0.10", default-features = false }

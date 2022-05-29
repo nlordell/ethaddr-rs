@@ -2,19 +2,52 @@
 
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 
-#[cfg(any(feature = "sha3", feature = "tiny-keccak"))]
+#[cfg(feature = "checksum")]
 mod checksum;
+mod hex;
 #[cfg(feature = "serde")]
 mod serde;
 
+pub use crate::hex::ParseAddressError;
 use core::{
     array::{IntoIter, TryFromSliceError},
     fmt::{self, Debug, Display, Formatter, LowerHex, UpperHex},
-    mem::{self, MaybeUninit},
     ops::{Deref, DerefMut},
     slice::Iter,
     str::{self, FromStr},
 };
+
+/// TODO(nlordell): ...
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// # use ethaddr::{address, Address};
+/// for address in [
+///     address!("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
+///     address!("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
+/// ] {
+///     assert_eq!(address, Address([0xee; 20]));
+/// }
+/// ```
+///
+/// Note that by default, the procedural macro will verify address checksums:
+///
+/// ```compile_fail
+/// # use ethaddr::address;
+/// let _ = address!("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+/// ```
+///
+/// However, this behaviour can be ignored by prefixing the address with a `~`:
+///
+/// ```
+/// # use ethaddr::address;
+/// let _ = address!(~"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+/// ```
+#[cfg(feature = "macros")]
+pub use ethaddr_macros::address;
 
 /// An Ethereum public address.
 #[repr(transparent)]
@@ -84,49 +117,11 @@ impl Address {
     /// assert!(Address::from_str_checksum("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",).is_ok());
     /// assert!(Address::from_str_checksum("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",).is_err());
     /// ```
-    #[cfg(any(feature = "sha3", feature = "tiny-keccak"))]
+    #[cfg(feature = "checksum")]
     pub fn from_str_checksum(s: &str) -> Result<Self, ParseAddressError> {
-        let address = s.parse()?;
-        let checksum = checksum::fmt(&address);
-        if strip_0x_prefix(checksum.as_str()) != strip_0x_prefix(s) {
-            return Err(ParseAddressError::ChecksumMismatch);
-        }
-
-        Ok(address)
+        checksum::parse(s).map(Self)
     }
 }
-
-/// TODO(nlordell): ...
-///
-/// # Examples
-///
-/// Basic usage:
-///
-/// ```
-/// # use ethaddr::{address, Address};
-/// for address in [
-///     address!("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
-///     address!("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"),
-/// ] {
-///     assert_eq!(address, Address([0xee; 20]));
-/// }
-/// ```
-///
-/// Note that by default, the procedural macro will verify address checksums:
-///
-/// ```compile_fail
-/// # use ethaddr::address;
-/// let _ = address!("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
-/// ```
-///
-/// However, this behaviour can be ignored by prefixing the address with a `~`:
-///
-/// ```
-/// # use ethaddr::address;
-/// let _ = address!(~"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
-/// ```
-#[cfg(feature = "macros")]
-pub use ethaddr_macros::address;
 
 impl Debug for Address {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -138,11 +133,11 @@ impl Debug for Address {
 
 impl Display for Address {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        #[cfg(any(feature = "sha3", feature = "tiny-keccak"))]
+        #[cfg(feature = "checksum")]
         {
             f.write_str(checksum::fmt(self).as_str())
         }
-        #[cfg(not(any(feature = "sha3", feature = "tiny-keccak")))]
+        #[cfg(not(feature = "checksum"))]
         {
             write!(f, "{self:#x}")
         }
@@ -215,36 +210,7 @@ impl FromStr for Address {
     type Err = ParseAddressError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = strip_0x_prefix(s);
-        if s.len() != 40 {
-            return Err(ParseAddressError::InvalidLength { len: s.len() });
-        }
-
-        let mut bytes = [MaybeUninit::<u8>::uninit(); 20];
-        let nibble = |c| match c {
-            b'0'..=b'9' => Some(c - b'0'),
-            b'A'..=b'F' => Some(c - b'A' + 0xa),
-            b'a'..=b'f' => Some(c - b'a' + 0xa),
-            _ => None,
-        };
-
-        for (i, ch) in s.as_bytes().chunks(2).enumerate() {
-            let (hi, lo) = (ch[0], ch[1]);
-
-            let hi = nibble(hi).ok_or(ParseAddressError::InvalidHexCharacter {
-                c: hi,
-                index: i * 2,
-            })?;
-            let lo = nibble(lo).ok_or(ParseAddressError::InvalidHexCharacter {
-                c: lo,
-                index: i * 2 + 1,
-            })?;
-
-            bytes[i].write((hi << 4) + lo);
-        }
-
-        let bytes = unsafe { mem::transmute(bytes) };
-        Ok(Self(bytes))
+        hex::decode(s).map(Self)
     }
 }
 
@@ -336,37 +302,6 @@ impl<'a> TryFrom<Vec<u8>> for Address {
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         Ok(Self(value.try_into()?))
     }
-}
-
-/// Represents an error parsing an address from a string.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ParseAddressError {
-    /// The hex string does not match
-    InvalidLength { len: usize },
-    /// An invalid character was found.
-    InvalidHexCharacter { c: u8, index: usize },
-    /// The checksum encoded in the hex string's case does not match the
-    /// address.
-    ChecksumMismatch,
-}
-
-impl Display for ParseAddressError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            Self::InvalidLength { .. } => write!(f, "invalid hex string length"),
-            Self::InvalidHexCharacter { c, index } => {
-                write!(f, "invalid character \\x{c:02x} at position {index}")
-            }
-            Self::ChecksumMismatch => write!(f, "address checksum does not match"),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for ParseAddressError {}
-
-fn strip_0x_prefix(s: &str) -> &str {
-    s.strip_prefix("0x").unwrap_or(s)
 }
 
 #[cfg(test)]
