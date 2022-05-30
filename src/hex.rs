@@ -7,9 +7,12 @@ use core::{
 
 /// Decode a hex string into address bytes.
 pub fn decode(s: &str) -> Result<[u8; 20], ParseAddressError> {
-    let s = strip_0x_prefix(s);
+    let (s, ch_offset) = match s.strip_prefix("0x") {
+        Some(s) => (s, 2),
+        None => (s, 0),
+    };
     if s.len() != 40 {
-        return Err(ParseAddressError::InvalidLength { len: s.len() });
+        return Err(ParseAddressError::InvalidLength);
     }
 
     let mut bytes = [MaybeUninit::<u8>::uninit(); 20];
@@ -19,19 +22,14 @@ pub fn decode(s: &str) -> Result<[u8; 20], ParseAddressError> {
         b'a'..=b'f' => Some(c - b'a' + 0xa),
         _ => None,
     };
+    let invalid_char = |i: usize| ParseAddressError::InvalidHexCharacter {
+        c: s[i..].chars().next().unwrap(),
+        index: i + ch_offset,
+    };
 
     for (i, ch) in s.as_bytes().chunks(2).enumerate() {
-        let (hi, lo) = (ch[0], ch[1]);
-
-        let hi = nibble(hi).ok_or(ParseAddressError::InvalidHexCharacter {
-            c: hi,
-            index: i * 2,
-        })?;
-        let lo = nibble(lo).ok_or(ParseAddressError::InvalidHexCharacter {
-            c: lo,
-            index: i * 2 + 1,
-        })?;
-
+        let hi = nibble(ch[0]).ok_or_else(|| invalid_char(i * 2))?;
+        let lo = nibble(ch[1]).ok_or_else(|| invalid_char(i * 2 + 1))?;
         bytes[i].write((hi << 4) + lo);
     }
 
@@ -42,12 +40,13 @@ pub fn decode(s: &str) -> Result<[u8; 20], ParseAddressError> {
 /// Represents an error parsing an address from a string.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ParseAddressError {
-    /// The hex string does not match
-    InvalidLength { len: usize },
+    /// The hex string does not have the correct length.
+    InvalidLength,
     /// An invalid character was found.
-    InvalidHexCharacter { c: u8, index: usize },
+    InvalidHexCharacter { c: char, index: usize },
     /// The checksum encoded in the hex string's case does not match the
     /// address.
+    #[allow(dead_code)]
     ChecksumMismatch,
 }
 
@@ -56,7 +55,7 @@ impl Display for ParseAddressError {
         match self {
             Self::InvalidLength { .. } => write!(f, "invalid hex string length"),
             Self::InvalidHexCharacter { c, index } => {
-                write!(f, "invalid character \\x{c:02x} at position {index}")
+                write!(f, "invalid character `{c}` at position {index}")
             }
             Self::ChecksumMismatch => write!(f, "address checksum does not match"),
         }
@@ -65,8 +64,3 @@ impl Display for ParseAddressError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for ParseAddressError {}
-
-/// Utility for striping leading `0x-` prefix from strings.
-pub fn strip_0x_prefix(s: &str) -> &str {
-    s.strip_prefix("0x").unwrap_or(s)
-}

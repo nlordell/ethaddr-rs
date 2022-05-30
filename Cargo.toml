@@ -12,14 +12,14 @@ license = "MIT OR Apache-2.0"
 keywords = ["public", "address", "ethereum"]
 categories = ["cryptography::cryptocurrencies", "no-std"]
 
+[package.metadata.docs.rs]
+features = ["checksum", "serde", "std", "macros"]
+
 [workspace]
-members = [
-  "macros",
-]
+members = ["macros"]
 
 [features]
-#default = ["checksum", "std"]
-default = ["checksum", "macros", "serde", "std"]
+default = ["checksum", "std"]
 checksum = ["sha3"]
 macros = ["ethaddr-macros"]
 std = ["serde?/std", "sha3?/std"]

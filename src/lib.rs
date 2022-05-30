@@ -1,13 +1,39 @@
-//! TODO(nlordell)
+//! Implementation of Ethereum public addresses for Rust.
+//!
+//! This crate provides an [`Address`] type for representing Ethereum public
+//! addresses.
+//!
+//! # Checksums
+//!
+//! Addresses are by default printed with EIP-55 mixed-case checksum encoding.
+//! Addresses checksums may optionally be verified when parsing with
+//! [`Address::from_str_checksum`].
+//!
+//! # Features
+//!
+//! This crate supports the following features:
+//! - **_default_ `std`**: Additional integration with Rust standard library
+//! types. Notably, this includes `std::error::Error` implementation on the
+//! [`ParseAddressError`] and conversions from `Vec<u8>`.
+//! - **_default_ `checksum`**: Include code for encoding and verifying EIP-55
+//! checksummed addresses. This requires Keccak-256 (provided by the [`sha3`]
+//! crate) hashing to be done on the address string.
+//! - **`serde`**: Serialization traits for the [`serde`](::serde) crate. Note
+//! that the implementation is very much geared towards JSON serialiazation with
+//! `serde_json`.
+//! - **`macros`**: Adds the [`address`] procedural macro for compile-time
+//! verified address literals.
 
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 
+mod buffer;
 #[cfg(feature = "checksum")]
 mod checksum;
 mod hex;
 #[cfg(feature = "serde")]
 mod serde;
 
+use crate::buffer::{FormattingBuffer, Alphabet};
 pub use crate::hex::ParseAddressError;
 use core::{
     array::{IntoIter, TryFromSliceError},
@@ -17,7 +43,9 @@ use core::{
     str::{self, FromStr},
 };
 
-/// TODO(nlordell): ...
+/// Procedural macro to create Ethereum public address values from string
+/// literals that get verified at compile time. A compiler error will be
+/// generated if an invalid address is specified.
 ///
 /// # Examples
 ///
@@ -119,7 +147,21 @@ impl Address {
     /// ```
     #[cfg(feature = "checksum")]
     pub fn from_str_checksum(s: &str) -> Result<Self, ParseAddressError> {
-        checksum::parse(s).map(Self)
+        let bytes = hex::decode(s)?;
+        checksum::verify(&bytes, s).map_err(|_| ParseAddressError::ChecksumMismatch)?;
+        Ok(Self(bytes))
+    }
+
+    /// Default formatting method for an address.
+    fn fmt(&self) -> FormattingBuffer {
+        #[cfg(feature = "checksum")]
+        {
+            checksum::fmt(self)
+        }
+        #[cfg(not(feature = "checksum"))]
+        {
+            buffer::fmt(self, Alphabet::Lower)
+        }
     }
 }
 
@@ -133,38 +175,29 @@ impl Debug for Address {
 
 impl Display for Address {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        #[cfg(feature = "checksum")]
-        {
-            f.write_str(checksum::fmt(self).as_str())
-        }
-        #[cfg(not(feature = "checksum"))]
-        {
-            write!(f, "{self:#x}")
-        }
+        f.pad(self.fmt().as_str())
     }
 }
 
 impl LowerHex for Address {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if f.alternate() {
-            write!(f, "0x")?;
-        }
-        for byte in self {
-            write!(f, "{byte:02x}")?;
-        }
-        Ok(())
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let buffer = buffer::fmt(self, Alphabet::Lower);
+        f.pad(if f.alternate() {
+            buffer.as_str()
+        } else {
+            buffer.as_bytes_str()
+        })
     }
 }
 
 impl UpperHex for Address {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if f.alternate() {
-            write!(f, "0x")?;
-        }
-        for byte in self {
-            write!(f, "{byte:02X}")?;
-        }
-        Ok(())
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let buffer = buffer::fmt(self, Alphabet::Upper);
+        f.pad(if f.alternate() {
+            buffer.as_str()
+        } else {
+            buffer.as_bytes_str()
+        })
     }
 }
 
@@ -310,12 +343,19 @@ mod tests {
 
     #[test]
     fn checksum_address() {
-        for s in &[
+        for s in [
             "0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1",
             "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
         ] {
             let address = s.parse::<Address>().unwrap();
-            assert_eq!(address.to_string(), *s);
+            #[cfg(feature = "checksum")]
+            {
+                assert_eq!(address.to_string(), s);
+            }
+            #[cfg(not(feature = "checksum"))]
+            {
+                assert_eq!(address.to_string(), s.to_lowercase());
+            }
         }
     }
 
@@ -326,6 +366,33 @@ mod tests {
                 .parse::<Address>()
                 .unwrap(),
             Address([0xee; 20]),
+        );
+    }
+
+    #[cfg(feature = "checksum")]
+    #[test]
+    fn verify_address_checksum() {
+        assert!(Address::from_str_checksum("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee").is_err());
+    }
+
+    #[test]
+    fn hex_formatting() {
+        let address = Address([0xee; 20]);
+        assert_eq!(
+            format!("{address:x}"),
+            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        );
+        assert_eq!(
+            format!("{address:#x}"),
+            "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        );
+        assert_eq!(
+            format!("{address:X}"),
+            "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
+        );
+        assert_eq!(
+            format!("{address:#X}"),
+            "0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
         );
     }
 }
