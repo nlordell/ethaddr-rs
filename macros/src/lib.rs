@@ -1,4 +1,4 @@
-//! Procedural macro for Ethereum addresses.
+//! Procedural macro for Ethereum address literals.
 //!
 //! See [`ethaddr`](https://docs.rs/ethaddr/latest/ethaddr/macro.address.html)
 //! documentation for more information.
