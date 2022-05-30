@@ -6,11 +6,8 @@
 extern crate proc_macro;
 
 #[allow(dead_code)]
-#[path = "../../src/buffer.rs"]
 mod buffer;
-#[path = "../../src/checksum.rs"]
 mod checksum;
-#[path = "../../src/hex.rs"]
 mod hex;
 
 use proc_macro::{Delimiter, Literal, Span, TokenStream, TokenTree};
