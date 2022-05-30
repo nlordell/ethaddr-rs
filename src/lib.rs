@@ -33,7 +33,7 @@ mod hex;
 #[cfg(feature = "serde")]
 mod serde;
 
-use crate::buffer::{FormattingBuffer, Alphabet};
+use crate::buffer::{Alphabet, FormattingBuffer};
 pub use crate::hex::ParseAddressError;
 use core::{
     array::{IntoIter, TryFromSliceError},
