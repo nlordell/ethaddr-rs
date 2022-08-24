@@ -52,7 +52,9 @@ impl FormattingBuffer {
 
     /// Returns the hex bytes of the address without the 0x prefix.
     pub fn as_bytes_str(&self) -> &str {
-        &self.as_str()[2..]
+        // SAFETY: Buffer always starts with `0x` prefix, so it is long enough
+        // and won't get sliced in the middle of a UTF-8 codepoint.
+        unsafe { &self.as_str().get_unchecked(2..) }
     }
 }
 

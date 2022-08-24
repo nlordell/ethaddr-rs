@@ -141,9 +141,9 @@ impl Address {
     ///
     /// ```
     /// # use ethaddr::Address;
-    /// assert!(Address::from_str_checksum("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",).is_ok());
-    /// assert!(Address::from_str_checksum("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",).is_ok());
-    /// assert!(Address::from_str_checksum("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",).is_err());
+    /// assert!(Address::from_str_checksum("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE").is_ok());
+    /// assert!(Address::from_str_checksum("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE").is_ok());
+    /// assert!(Address::from_str_checksum("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee").is_err());
     /// ```
     #[cfg(feature = "checksum")]
     pub fn from_str_checksum(s: &str) -> Result<Self, ParseAddressError> {
