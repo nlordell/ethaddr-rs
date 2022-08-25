@@ -54,7 +54,7 @@ impl FormattingBuffer {
     pub fn as_bytes_str(&self) -> &str {
         // SAFETY: Buffer always starts with `0x` prefix, so it is long enough
         // and won't get sliced in the middle of a UTF-8 codepoint.
-        unsafe { &self.as_str().get_unchecked(2..) }
+        unsafe { self.as_str().get_unchecked(2..) }
     }
 }
 

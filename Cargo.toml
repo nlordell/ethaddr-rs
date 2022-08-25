@@ -1,6 +1,6 @@
 [package]
 name = "ethaddr"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
 edition = "2021"
 description = "Ethereum public address"
@@ -25,6 +25,6 @@ macros = ["ethaddr-macros"]
 std = ["serde?/std", "sha3?/std"]
 
 [dependencies]
-ethaddr-macros = { version = "0.1", path = "macros", optional = true }
+ethaddr-macros = { version = "0.1.1", path = "macros", optional = true }
 serde = { version = "1", default-features = false, optional = true }
 sha3 = { version = "0.10", default-features = false, optional = true }

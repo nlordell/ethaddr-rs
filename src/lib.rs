@@ -329,7 +329,7 @@ impl<'a> TryFrom<&'a mut [u8]> for &'a mut Address {
 }
 
 #[cfg(feature = "std")]
-impl<'a> TryFrom<Vec<u8>> for Address {
+impl TryFrom<Vec<u8>> for Address {
     type Error = Vec<u8>;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
