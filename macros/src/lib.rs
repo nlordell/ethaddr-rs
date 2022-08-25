@@ -21,11 +21,6 @@ pub fn address(input: TokenStream) -> TokenStream {
     }
 }
 
-#[proc_macro]
-pub fn test_input(input: TokenStream) -> TokenStream {
-    panic!("{input:?}");
-}
-
 struct AddressLiteral([u8; 20]);
 
 impl AddressLiteral {
